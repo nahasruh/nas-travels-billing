@@ -14,17 +14,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { APP } from "@/lib/constants";
 
 const nav = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/sales", label: "Sales (Tickets)", icon: Ticket },
-  { href: "/payments", label: "Payments / Ledger", icon: BadgeDollarSign },
-  { href: "/agents", label: "Agents", icon: Building2 },
-  { href: "/salesmen", label: "Salesmen", icon: Users },
-  { href: "/search", label: "Search", icon: Search },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "salesman"] },
+  { href: "/sales", label: "Sales (Tickets)", icon: Ticket, roles: ["admin", "salesman"] },
+  { href: "/payments", label: "Payments / Ledger", icon: BadgeDollarSign, roles: ["admin", "salesman"] },
+  { href: "/agents", label: "Agents", icon: Building2, roles: ["admin"] },
+  { href: "/salesmen", label: "Salesmen", icon: Users, roles: ["admin"] },
+  { href: "/search", label: "Search", icon: Search, roles: ["admin", "salesman"] },
+  { href: "/reports", label: "Reports", icon: Search, roles: ["admin"] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut, user, role } = useAuth();
 
   return (
     <div className="min-h-screen grid-fade">
@@ -47,7 +48,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="px-3 pb-6">
-            {nav.map((item) => {
+            {nav.filter((n) => !role || n.roles.includes(role)).map((item) => {
               const active = location === item.href;
               const Icon = item.icon;
               return (
