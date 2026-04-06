@@ -89,8 +89,25 @@ create index if not exists sales_salesman_id_idx on public.sales (salesman_id);
 --   customer_in  = money received from customer
 --   agent_out    = money paid to agent
 --   agent_credit = credit adjustment you owe agent (optional use)
-create type if not exists public.ledger_direction as enum ('customer_in', 'agent_out', 'agent_credit');
-create type if not exists public.payment_method as enum ('cash', 'bank_transfer', 'card', 'credit');
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'ledger_direction'
+  ) then
+    create type public.ledger_direction as enum ('customer_in', 'agent_out', 'agent_credit');
+  end if;
+
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'payment_method'
+  ) then
+    create type public.payment_method as enum ('cash', 'bank_transfer', 'card', 'credit');
+  end if;
+end
+$$;
 
 create table if not exists public.ledger_entries (
   id uuid primary key default gen_random_uuid(),
