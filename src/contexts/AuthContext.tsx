@@ -2,9 +2,12 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 
+export type AppRole = "admin" | "salesman";
+
 type AuthState = {
   user: User | null;
   session: Session | null;
+  role: AppRole | null;
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -15,22 +18,34 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<"admin" | "salesman" | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+
+    async function fetchRole(uid: string | undefined) {
+      if (!uid) {
+        setRole(null);
+        return;
+      }
+      const { data } = await supabase.from("profiles").select("role").eq("user_id", uid).maybeSingle();
+      setRole((data?.role as any) ?? null);
+    }
 
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(data.session ?? null);
       setUser(data.session?.user ?? null);
+      await fetchRole(data.session?.user?.id);
       setLoading(false);
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      await fetchRole(newSession?.user?.id);
       setLoading(false);
     });
 
@@ -44,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       session,
+      role,
       loading,
       signInWithPassword: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -54,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) throw error;
       },
     }),
-    [user, session, loading]
+    [user, session, role, loading]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
