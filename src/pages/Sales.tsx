@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -167,6 +168,8 @@ function SaleForm({ agents, salesmen, onCreated }: { agents: Agent[]; salesmen: 
 }
 
 export default function Sales() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
@@ -262,7 +265,7 @@ export default function Sales() {
                 <TableHead className="hidden lg:table-cell">Salesman</TableHead>
                 <TableHead className="text-right">Sell</TableHead>
                 <TableHead className="text-right">Cost</TableHead>
-                <TableHead className="text-right">Profit</TableHead>
+                {isAdmin && <TableHead className="text-right">Profit</TableHead>}
                 <TableHead className="w-[90px] text-right"> </TableHead>
               </TableRow>
             </TableHeader>
@@ -279,28 +282,37 @@ export default function Sales() {
                   <TableCell className="hidden lg:table-cell">{r.salesman_id ? salesmanName[r.salesman_id] : "—"}</TableCell>
                   <TableCell className="text-right mono">{formatSar(r.sell_amount_sar)}</TableCell>
                   <TableCell className="text-right mono">{formatSar(r.cost_amount_sar)}</TableCell>
-                  <TableCell className="text-right mono text-primary">{formatSar(r.profit_sar)}</TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right mono text-primary">{formatSar(r.profit_sar)}</TableCell>
+                  )}
                   <TableCell className="text-right">
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      onClick={async () => {
-                        if (!confirm("Delete this sale?") ) return;
-                        const { error } = await supabase.from("sales").delete().eq("id", r.id);
-                        if (error) return toast.error(error.message);
-                        toast.success("Deleted");
-                        await load();
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {isAdmin ? (
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        onClick={async () => {
+                          if (!confirm("Delete this sale?") ) return;
+                          const { error } = await supabase.from("sales").delete().eq("id", r.id);
+                          if (error) return toast.error(error.message);
+                          toast.success("Deleted");
+                          await load();
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No delete</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
 
               {!loading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={isAdmin ? 9 : 8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No sales yet.
                   </TableCell>
                 </TableRow>
@@ -308,7 +320,10 @@ export default function Sales() {
 
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={isAdmin ? 9 : 8}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     Loading…
                   </TableCell>
                 </TableRow>

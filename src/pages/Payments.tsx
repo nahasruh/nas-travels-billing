@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -44,10 +45,12 @@ function LedgerForm({
   agents,
   sales,
   onCreated,
+  isAdmin,
 }: {
   agents: Agent[];
   sales: SaleLite[];
   onCreated: () => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [entryDate, setEntryDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -72,14 +75,14 @@ function LedgerForm({
         </div>
         <div className="space-y-2">
           <Label>Direction</Label>
-          <Select value={direction} onValueChange={(v) => setDirection(v as any)}>
+          <Select value={direction} onValueChange={(v) => setDirection(v as any)} disabled={!isAdmin}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="customer_in">Customer received</SelectItem>
-              <SelectItem value="agent_out">Paid to agent</SelectItem>
-              <SelectItem value="agent_credit">Agent credit</SelectItem>
+              {isAdmin && <SelectItem value="agent_out">Paid to agent</SelectItem>}
+              {isAdmin && <SelectItem value="agent_credit">Agent credit</SelectItem>}
             </SelectContent>
           </Select>
         </div>
@@ -102,7 +105,7 @@ function LedgerForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Agent (optional)</Label>
-          <Select value={agentId} onValueChange={setAgentId}>
+          <Select value={agentId} onValueChange={setAgentId} disabled={!isAdmin}>
             <SelectTrigger>
               <SelectValue placeholder="Select agent" />
             </SelectTrigger>
@@ -186,6 +189,8 @@ function LedgerForm({
 }
 
 export default function Payments() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [sales, setSales] = useState<SaleLite[]>([]);
@@ -262,7 +267,7 @@ export default function Payments() {
               <DialogHeader>
                 <DialogTitle>New ledger entry</DialogTitle>
               </DialogHeader>
-              <LedgerForm agents={agents} sales={sales} onCreated={load} />
+              <LedgerForm agents={agents} sales={sales} onCreated={load} isAdmin={isAdmin} />
             </DialogContent>
           </Dialog>
         </div>
@@ -297,19 +302,23 @@ export default function Payments() {
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">{r.reference ?? "—"}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        onClick={async () => {
-                          if (!confirm("Delete this entry?") ) return;
-                          const { error } = await supabase.from("ledger_entries").delete().eq("id", r.id);
-                          if (error) return toast.error(error.message);
-                          toast.success("Deleted");
-                          await load();
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isAdmin ? (
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          onClick={async () => {
+                            if (!confirm("Delete this entry?") ) return;
+                            const { error } = await supabase.from("ledger_entries").delete().eq("id", r.id);
+                            if (error) return toast.error(error.message);
+                            toast.success("Deleted");
+                            await load();
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No delete</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 );

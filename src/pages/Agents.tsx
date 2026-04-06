@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, RefreshCcw } from "lucide-react";
+import { Plus, Trash2, Pencil, RefreshCcw, Upload } from "lucide-react";
 import { formatSar } from "@/lib/format";
+import * as XLSX from "xlsx";
 
 type Agent = {
   id: string;
@@ -100,6 +101,11 @@ export default function Agents() {
   const [balances, setBalances] = useState<Record<string, AgentBalance>>({});
   const [q, setQ] = useState("");
 
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importPreview, setImportPreview] = useState<Array<{ name: string; opening_balance_sar: number }>>([]);
+  const [importFileName, setImportFileName] = useState<string>("");
+
   async function load() {
     setLoading(true);
     const { data: a, error: e1 } = await supabase
@@ -131,6 +137,130 @@ export default function Agents() {
     return agents.filter((a) => a.name.toLowerCase().includes(s) || (a.phone ?? "").includes(s));
   }, [agents, q]);
 
+  async function parseAgentWorkbook(file: File) {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+
+    function normalizeName(s: string) {
+      return s
+        .replace(/\s+/g, " ")
+        .replace(/\bPAID\b/gi, "")
+        .replace(/\bAND\b/gi, "")
+        .replace(/\bSALES\b/gi, "")
+        .replace(/\bBALANCE\b/gi, "")
+        .replace(/[&]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function extractBalanceFromSheet(sheetName: string) {
+      try {
+        const ws = wb.Sheets[sheetName];
+        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, blankrows: false }) as any;
+        for (const row of rows) {
+          for (let i = 0; i < row.length; i++) {
+            const cell = row[i];
+            if (typeof cell === "string" && cell.trim().toLowerCase() === "balance") {
+              const next = row[i + 1];
+              const val = Number(next);
+              if (!Number.isNaN(val)) return val;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+      return 0;
+    }
+
+    const agentMap = new Map<string, { name: string; opening_balance_sar: number }>();
+
+    for (const sh of wb.SheetNames) {
+      const name = normalizeName(sh);
+      if (!name) continue;
+      const balance = /balance/i.test(sh) ? extractBalanceFromSheet(sh) : 0;
+
+      const key = name.toLowerCase();
+      const prev = agentMap.get(key);
+      if (!prev) {
+        agentMap.set(key, { name, opening_balance_sar: Number(balance || 0) });
+      } else if (!prev.opening_balance_sar && balance) {
+        prev.opening_balance_sar = Number(balance || 0);
+      }
+    }
+
+    const list = Array.from(agentMap.values())
+      .filter((a) => a.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return list;
+  }
+
+  async function importAgents(list: Array<{ name: string; opening_balance_sar: number }>) {
+    setImportBusy(true);
+
+    const { data: existing, error: e1 } = await supabase
+      .from("agents")
+      .select("id,name,opening_balance_sar")
+      .order("name", { ascending: true });
+
+    if (e1) {
+      setImportBusy(false);
+      toast.error(e1.message);
+      return;
+    }
+
+    const map = new Map<string, Agent>();
+    (existing ?? []).forEach((a: any) => map.set(String(a.name).toLowerCase(), a as Agent));
+
+    const toInsert: any[] = [];
+    const toUpdate: Array<{ id: string; opening_balance_sar: number }> = [];
+
+    for (const row of list) {
+      const key = row.name.toLowerCase();
+      const found = map.get(key);
+      if (!found) {
+        toInsert.push({
+          name: row.name,
+          opening_balance_sar: Number(row.opening_balance_sar || 0),
+          phone: null,
+          email: null,
+          notes: "Imported from Excel",
+        });
+      } else {
+        const newBal = Number(row.opening_balance_sar || 0);
+        if (newBal && Number(found.opening_balance_sar || 0) !== newBal) {
+          toUpdate.push({ id: found.id, opening_balance_sar: newBal });
+        }
+      }
+    }
+
+    if (toInsert.length) {
+      const { error } = await supabase.from("agents").insert(toInsert);
+      if (error) {
+        setImportBusy(false);
+        toast.error(error.message);
+        return;
+      }
+    }
+
+    for (const u of toUpdate) {
+      const { error } = await supabase.from("agents").update({ opening_balance_sar: u.opening_balance_sar }).eq("id", u.id);
+      if (error) {
+        setImportBusy(false);
+        toast.error(error.message);
+        return;
+      }
+    }
+
+    toast.success(`Imported: ${toInsert.length} new, ${toUpdate.length} updated`);
+    setImportBusy(false);
+    setImportOpen(false);
+    setImportPreview([]);
+    setImportFileName("");
+    await load();
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -145,10 +275,22 @@ export default function Agents() {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search by name or phone"
           />
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              setImportOpen(true);
+            }}
+          >
+            <Upload className="h-4 w-4" />
+            Import Excel
+          </Button>
+
           <Button variant="outline" className="gap-2" onClick={load}>
             <RefreshCcw className="h-4 w-4" />
             Refresh
           </Button>
+
           <Dialog>
             <DialogTrigger asChild>
               <Button className="gap-2">
@@ -172,6 +314,94 @@ export default function Agents() {
           </Dialog>
         </div>
       </div>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="sm:max-w-[900px]">
+          <DialogHeader>
+            <DialogTitle>Import agents from Excel</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Upload your Excel and we will create agents using the sheet names. If the sheet contains a
+              “Balance” value, it will be used as opening balance.
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Excel file</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  try {
+                    setImportFileName(f.name);
+                    setImportPreview([]);
+                    const list = await parseAgentWorkbook(f);
+                    if (!list.length) {
+                      toast.error("No agents found in this workbook");
+                      return;
+                    }
+                    setImportPreview(list);
+                    toast.success(`Parsed ${list.length} agents`);
+                  } catch (err: any) {
+                    toast.error(err?.message ?? "Failed to read Excel");
+                  }
+                }}
+              />
+              {importFileName && <div className="text-xs text-muted-foreground">Selected: {importFileName}</div>}
+            </div>
+
+            <Card className="border-border/60 bg-card/50">
+              <div className="p-3">
+                <div className="text-sm font-semibold">Preview</div>
+                <div className="mt-2 max-h-[320px] overflow-auto rounded-lg border border-border/60">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Agent</TableHead>
+                        <TableHead className="text-right">Opening balance (SAR)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importPreview.slice(0, 200).map((r) => (
+                        <TableRow key={r.name}>
+                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="text-right mono">{formatSar(r.opening_balance_sar)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {importPreview.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={2} className="py-10 text-center text-sm text-muted-foreground">
+                            Upload an Excel file to see preview.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {importPreview.length > 200 && (
+                  <div className="mt-2 text-xs text-muted-foreground">Showing first 200 rows.</div>
+                )}
+              </div>
+            </Card>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importBusy}>
+                Cancel
+              </Button>
+              <Button
+                className="gap-2"
+                disabled={importBusy || importPreview.length === 0}
+                onClick={() => importAgents(importPreview)}
+              >
+                {importBusy ? "Importing…" : "Import to Supabase"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card className="border-border/60 bg-card/70 backdrop-blur">
         <div className="p-4">

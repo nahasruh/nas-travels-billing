@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,8 @@ type SaleResult = {
 };
 
 export default function SearchPage() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<SaleResult[]>([]);
@@ -91,8 +94,7 @@ export default function SearchPage() {
                 <TableHead>Customer</TableHead>
                 <TableHead className="hidden md:table-cell">Mobile</TableHead>
                 <TableHead className="hidden lg:table-cell">Ticket</TableHead>
-                <TableHead className="text-right">Profit</TableHead>
-              </TableRow>
+                {isAdmin && <TableHead className="text-right">Profit</TableHead>}              </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
@@ -101,13 +103,18 @@ export default function SearchPage() {
                   <TableCell className="font-medium">{r.customer_name}</TableCell>
                   <TableCell className="hidden md:table-cell">{r.customer_mobile ?? "—"}</TableCell>
                   <TableCell className="hidden lg:table-cell">{r.ticket_number ?? "—"}</TableCell>
-                  <TableCell className="text-right mono text-primary">{formatSar(r.profit_sar)}</TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right mono text-primary">{formatSar(r.profit_sar)}</TableCell>
+                  )}
                 </TableRow>
               ))}
 
               {!loading && rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell
+                    colSpan={isAdmin ? 5 : 4}
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
                     No results.
                   </TableCell>
                 </TableRow>

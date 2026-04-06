@@ -1,0 +1,124 @@
+import { useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { downloadCsv } from "@/lib/csv";
+
+export default function Reports() {
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState(today);
+  const [busy, setBusy] = useState(false);
+
+  async function exportSales() {
+    setBusy(true);
+    const query = supabase
+      .from("sales")
+      .select(
+        "id,sale_date,customer_name,customer_mobile,ticket_number,route,passenger_name,agent_id,salesman_id,sell_amount_sar,cost_amount_sar,profit_sar,notes,created_at"
+      )
+      .order("sale_date", { ascending: false })
+      .limit(5000);
+
+    const q = from ? query.gte("sale_date", from).lte("sale_date", to) : query.lte("sale_date", to);
+    const { data, error } = await q;
+    setBusy(false);
+    if (error) return toast.error(error.message);
+
+    downloadCsv(
+      `nas-sales-${from || "start"}-to-${to}.csv`,
+      (data ?? []).map((r: any) => ({
+        sale_date: r.sale_date,
+        customer_name: r.customer_name,
+        customer_mobile: r.customer_mobile,
+        ticket_number: r.ticket_number,
+        route: r.route,
+        passenger_name: r.passenger_name,
+        agent_id: r.agent_id,
+        salesman_id: r.salesman_id,
+        sell_amount_sar: r.sell_amount_sar,
+        cost_amount_sar: r.cost_amount_sar,
+        profit_sar: r.profit_sar,
+        notes: r.notes,
+      }))
+    );
+    toast.success(`Exported ${data?.length ?? 0} sales`);
+  }
+
+  async function exportLedger() {
+    setBusy(true);
+    const query = supabase
+      .from("ledger_entries")
+      .select(
+        "id,entry_date,direction,method,amount_sar,agent_id,sale_id,reference,notes,created_at"
+      )
+      .order("entry_date", { ascending: false })
+      .limit(5000);
+
+    const q = from ? query.gte("entry_date", from).lte("entry_date", to) : query.lte("entry_date", to);
+    const { data, error } = await q;
+    setBusy(false);
+    if (error) return toast.error(error.message);
+
+    downloadCsv(
+      `nas-ledger-${from || "start"}-to-${to}.csv`,
+      (data ?? []).map((r: any) => ({
+        entry_date: r.entry_date,
+        direction: r.direction,
+        method: r.method,
+        amount_sar: r.amount_sar,
+        agent_id: r.agent_id,
+        sale_id: r.sale_id,
+        reference: r.reference,
+        notes: r.notes,
+      }))
+    );
+    toast.success(`Exported ${data?.length ?? 0} ledger rows`);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="text-2xl font-semibold tracking-tight">Reports</div>
+        <div className="text-sm text-muted-foreground">Export CSV files for accounting</div>
+      </div>
+
+      <Card className="border-border/60 bg-card/70 backdrop-blur">
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>From (optional)</Label>
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>To</Label>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Actions</Label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button disabled={busy} onClick={exportSales} className="w-full">
+                  Export Sales (CSV)
+                </Button>
+                <Button disabled={busy} onClick={exportLedger} variant="outline" className="w-full">
+                  Export Ledger (CSV)
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground leading-relaxed">
+            Notes:
+            <br />
+            - CSV downloads start immediately after clicking export.
+            <br />
+            - If you want agent names in the CSV (not IDs), tell me and I’ll update the export.
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
