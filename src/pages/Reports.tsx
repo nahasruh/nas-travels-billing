@@ -138,7 +138,7 @@ export default function Reports() {
             <br />
             - CSV downloads start immediately after clicking export.
             <br />
-            - If you want agent names in the CSV (not IDs), tell me and I’ll update the export.
+            - Exports include agent/salesman names (not IDs).
           </div>
         </div>
       </Card>

@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, RefreshCcw, Upload } from "lucide-react";
+import { Plus, Trash2, Pencil, RefreshCcw, Upload, BadgeDollarSign } from "lucide-react";
 import { formatSar } from "@/lib/format";
+import { useAuth } from "@/contexts/AuthContext";
 import * as XLSX from "xlsx";
 
 type Agent = {
@@ -96,6 +97,8 @@ function AgentForm({
 }
 
 export default function Agents() {
+  const { role } = useAuth();
+  const isAdmin = role === "admin";
   const [loading, setLoading] = useState(true);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [balances, setBalances] = useState<Record<string, AgentBalance>>({});
@@ -105,6 +108,12 @@ export default function Agents() {
   const [importBusy, setImportBusy] = useState(false);
   const [importPreview, setImportPreview] = useState<Array<{ name: string; opening_balance_sar: number }>>([]);
   const [importFileName, setImportFileName] = useState<string>("");
+
+  const [creditOpen, setCreditOpen] = useState(false);
+  const [creditAgent, setCreditAgent] = useState<Agent | null>(null);
+  const [creditAmount, setCreditAmount] = useState("0");
+  const [creditNotes, setCreditNotes] = useState("");
+  const [creditBusy, setCreditBusy] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -403,6 +412,69 @@ export default function Agents() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={creditOpen} onOpenChange={setCreditOpen}>
+        <DialogContent className="sm:max-w-[680px]">
+          <DialogHeader>
+            <DialogTitle>Agent credit adjustment</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border border-border/60 bg-background/40 p-3">
+              <div className="text-sm font-semibold">{creditAgent?.name ?? "Agent"}</div>
+              <div className="text-xs text-muted-foreground">This will create a ledger entry: direction = agent_credit</div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Credit amount (SAR)</Label>
+                <Input value={creditAmount} onChange={(e) => setCreditAmount(e.target.value)} inputMode="decimal" />
+              </div>
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Input value={creditNotes} onChange={(e) => setCreditNotes(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+
+            <Button
+              className="w-full gap-2"
+              disabled={creditBusy || !creditAgent}
+              onClick={async () => {
+                const amt = Number(creditAmount || 0);
+                if (!amt || amt <= 0) return toast.error("Amount must be > 0");
+                if (!creditAgent) return;
+                try {
+                  setCreditBusy(true);
+                  const { error } = await supabase.from("ledger_entries").insert({
+                    entry_date: new Date().toISOString().slice(0, 10),
+                    direction: "agent_credit",
+                    method: "credit",
+                    amount_sar: amt,
+                    agent_id: creditAgent.id,
+                    sale_id: null,
+                    reference: null,
+                    notes: creditNotes.trim() || "Agent credit adjustment",
+                  });
+                  if (error) throw error;
+                  toast.success("Credit entry saved");
+                  setCreditBusy(false);
+                  setCreditOpen(false);
+                  setCreditAgent(null);
+                  setCreditAmount("0");
+                  setCreditNotes("");
+                  await load();
+                } catch (e: any) {
+                  setCreditBusy(false);
+                  toast.error(e?.message ?? "Failed");
+                }
+              }}
+            >
+              <BadgeDollarSign className="h-4 w-4" />
+              {creditBusy ? "Saving…" : "Save credit"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card className="border-border/60 bg-card/70 backdrop-blur">
         <div className="p-4">
           <Table>
@@ -451,19 +523,37 @@ export default function Agents() {
                           </DialogContent>
                         </Dialog>
 
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          onClick={async () => {
-                            if (!confirm(`Delete agent "${a.name}"?`)) return;
-                            const { error } = await supabase.from("agents").delete().eq("id", a.id);
-                            if (error) return toast.error(error.message);
-                            toast.success("Deleted");
-                            await load();
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {isAdmin ? (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              title="Add credit adjustment"
+                              onClick={() => {
+                                setCreditAgent(a);
+                                setCreditOpen(true);
+                              }}
+                            >
+                              <BadgeDollarSign className="h-4 w-4" />
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              onClick={async () => {
+                                if (!confirm(`Delete agent "${a.name}"?`)) return;
+                                const { error } = await supabase.from("agents").delete().eq("id", a.id);
+                                if (error) return toast.error(error.message);
+                                toast.success("Deleted");
+                                await load();
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No actions</span>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
