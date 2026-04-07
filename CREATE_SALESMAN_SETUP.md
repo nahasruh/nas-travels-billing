@@ -2,6 +2,8 @@
 
 This feature uses a **Supabase Edge Function** so the website can safely create salesman users.
 
+If you see **“Failed to fetch”** in the browser, it is usually a **CORS** issue — deploy the latest function code (it includes CORS headers).
+
 ## Why Edge Function
 Creating users requires the **Service Role key** (secret). Secrets must **never** be placed in the frontend.
 
@@ -18,6 +20,9 @@ From this project root folder:
 supabase login
 supabase link --project-ref orcipayaafyqfqjkphxq
 supabase functions deploy create-salesman
+
+# If you deployed before, redeploy after updating the function:
+# supabase functions deploy create-salesman
 ```
 
 ## 3) Set function secrets

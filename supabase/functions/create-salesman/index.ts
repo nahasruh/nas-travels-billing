@@ -14,9 +14,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { badRequest, forbidden, json } from "../_shared/http.ts";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, { status: 405 });
+    return json({ error: "Method not allowed" }, { status: 405, headers: corsHeaders });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -27,21 +37,21 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("Authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!token) return forbidden("Missing Authorization token");
+  if (!token) return new Response(JSON.stringify({ error: "Missing Authorization token" }), { status: 403, headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders } });
 
   let payload: any = null;
   try {
     payload = await req.json();
   } catch {
-    return badRequest("Invalid JSON body");
+    return json({ error: "Invalid JSON body" }, { status: 400, headers: corsHeaders });
   }
 
   const email = String(payload?.email ?? "").trim().toLowerCase();
   const password = String(payload?.password ?? "");
   const fullName = String(payload?.full_name ?? "").trim();
 
-  if (!email || !email.includes("@")) return badRequest("Valid email is required");
-  if (!password || password.length < 6) return badRequest("Password must be at least 6 characters");
+  if (!email || !email.includes("@")) return json({ error: "Valid email is required" }, { status: 400, headers: corsHeaders });
+  if (!password || password.length < 6) return json({ error: "Password must be at least 6 characters" }, { status: 400, headers: corsHeaders });
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -49,7 +59,9 @@ Deno.serve(async (req) => {
 
   // 1) Verify caller token + role
   const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData?.user) return forbidden("Invalid token");
+  if (userErr || !userData?.user) {
+    return json({ error: "Invalid token" }, { status: 403, headers: corsHeaders });
+  }
 
   const callerId = userData.user.id;
   const { data: prof } = await admin
@@ -58,7 +70,7 @@ Deno.serve(async (req) => {
     .eq("user_id", callerId)
     .maybeSingle();
 
-  if (prof?.role !== "admin") return forbidden("Admin role required");
+  if (prof?.role !== "admin") return json({ error: "Admin role required" }, { status: 403, headers: corsHeaders });
 
   // 2) Create Auth user
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -68,7 +80,7 @@ Deno.serve(async (req) => {
   });
 
   if (createErr) {
-    return badRequest(createErr.message);
+    return json({ error: createErr.message }, { status: 400, headers: corsHeaders });
   }
 
   // 3) Upsert salesman profile
@@ -81,8 +93,8 @@ Deno.serve(async (req) => {
     });
 
   if (profErr) {
-    return json({ error: profErr.message }, { status: 500 });
+    return json({ error: profErr.message }, { status: 500, headers: corsHeaders });
   }
 
-  return json({ ok: true, user_id: created.user.id, email });
+  return json({ ok: true, user_id: created.user.id, email }, { headers: corsHeaders });
 });
