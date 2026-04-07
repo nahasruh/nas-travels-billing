@@ -2,11 +2,13 @@ import { Link, useLocation } from "wouter";
 import {
   BadgeDollarSign,
   Building2,
+  FileDown,
   LogOut,
   LayoutDashboard,
   Search,
   Ticket,
   Users,
+  UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,8 +22,8 @@ const nav = [
   { href: "/agents", label: "Agents", icon: Building2, roles: ["admin"] },
   { href: "/salesmen", label: "Salesmen", icon: Users, roles: ["admin"] },
   { href: "/search", label: "Search", icon: Search, roles: ["admin", "salesman"] },
-  { href: "/reports", label: "Reports", icon: Search, roles: ["admin"] },
-  { href: "/admin/users", label: "Create Salesman Login", icon: Users, roles: ["admin"] },
+  { href: "/reports", label: "Reports", icon: FileDown, roles: ["admin"] },
+  { href: "/admin/users", label: "Create Salesman Login", icon: UserPlus, roles: ["admin"] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

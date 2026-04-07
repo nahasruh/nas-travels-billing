@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { downloadCsv } from "@/lib/csv";
+import { FileDown, Receipt, Ticket } from "lucide-react";
 
 export default function Reports() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -15,6 +16,15 @@ export default function Reports() {
 
   async function exportSales() {
     setBusy(true);
+
+    const [{ data: agents }, { data: salesmen }] = await Promise.all([
+      supabase.from("agents").select("id,name"),
+      supabase.from("salesmen").select("id,name"),
+    ]);
+
+    const agentName = new Map<string, string>((agents ?? []).map((a: any) => [a.id, a.name]));
+    const salesmanName = new Map<string, string>((salesmen ?? []).map((s: any) => [s.id, s.name]));
+
     const query = supabase
       .from("sales")
       .select(
@@ -37,8 +47,8 @@ export default function Reports() {
         ticket_number: r.ticket_number,
         route: r.route,
         passenger_name: r.passenger_name,
-        agent_id: r.agent_id,
-        salesman_id: r.salesman_id,
+        agent_name: r.agent_id ? agentName.get(r.agent_id) ?? "" : "",
+        salesman_name: r.salesman_id ? salesmanName.get(r.salesman_id) ?? "" : "",
         sell_amount_sar: r.sell_amount_sar,
         cost_amount_sar: r.cost_amount_sar,
         profit_sar: r.profit_sar,
@@ -50,6 +60,17 @@ export default function Reports() {
 
   async function exportLedger() {
     setBusy(true);
+
+    const [{ data: agents }, { data: sales }] = await Promise.all([
+      supabase.from("agents").select("id,name"),
+      supabase.from("sales").select("id,customer_name,ticket_number"),
+    ]);
+
+    const agentName = new Map<string, string>((agents ?? []).map((a: any) => [a.id, a.name]));
+    const saleRef = new Map<string, string>(
+      (sales ?? []).map((s: any) => [s.id, `${s.customer_name}${s.ticket_number ? ` (${s.ticket_number})` : ""}`])
+    );
+
     const query = supabase
       .from("ledger_entries")
       .select(
@@ -70,8 +91,8 @@ export default function Reports() {
         direction: r.direction,
         method: r.method,
         amount_sar: r.amount_sar,
-        agent_id: r.agent_id,
-        sale_id: r.sale_id,
+        agent_name: r.agent_id ? agentName.get(r.agent_id) ?? "" : "",
+        sale_ref: r.sale_id ? saleRef.get(r.sale_id) ?? "" : "",
         reference: r.reference,
         notes: r.notes,
       }))
@@ -100,10 +121,12 @@ export default function Reports() {
             <div className="space-y-2">
               <Label>Actions</Label>
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button disabled={busy} onClick={exportSales} className="w-full">
+                <Button disabled={busy} onClick={exportSales} className="w-full gap-2">
+                  <Ticket className="h-4 w-4" />
                   Export Sales (CSV)
                 </Button>
-                <Button disabled={busy} onClick={exportLedger} variant="outline" className="w-full">
+                <Button disabled={busy} onClick={exportLedger} variant="outline" className="w-full gap-2">
+                  <Receipt className="h-4 w-4" />
                   Export Ledger (CSV)
                 </Button>
               </div>

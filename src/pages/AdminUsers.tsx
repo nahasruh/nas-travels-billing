@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import { UserPlus } from "lucide-react";
 
 export default function AdminUsers() {
   const { session } = useAuth();
@@ -74,7 +75,8 @@ export default function AdminUsers() {
             </div>
             <div className="space-y-2">
               <Label> </Label>
-              <Button className="w-full" disabled={busy} onClick={create}>
+              <Button className="w-full gap-2" disabled={busy} onClick={create}>
+                <UserPlus className="h-4 w-4" />
                 {busy ? "Creating…" : "Create salesman"}
               </Button>
             </div>
