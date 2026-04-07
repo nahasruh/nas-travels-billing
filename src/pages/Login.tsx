@@ -23,9 +23,7 @@ export default function Login() {
               <div className="text-xl font-semibold tracking-tight">NAS Travels</div>
               <div className="text-sm text-muted-foreground">Billing Application • Sign in</div>
             </div>
-            <div className="h-11 w-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center font-bold">
-              N
-            </div>
+            <div className="h-11 w-11 rounded-2xl bg-primary text-primary-foreground grid place-items-center font-bold">N</div>
           </div>
 
           <div className="mt-6 space-y-4">
@@ -36,12 +34,7 @@ export default function Login() {
 
             <div className="space-y-2">
               <Label>Password</Label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
 
             <Button
@@ -63,7 +56,7 @@ export default function Login() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
 
-            <div className="text-xs text-muted-foreground leading-relaxed">
+            <div className="text-xs text-muted-foreground">
               Admin note: create users in Supabase → Authentication → Users.
             </div>
           </div>

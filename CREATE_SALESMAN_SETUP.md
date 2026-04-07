@@ -13,13 +13,14 @@ Creating users requires the **Service Role key** (secret). Secrets must **never*
   - `supabase_roles_rls.sql`
 - You have installed Supabase CLI
 
-## 2) Deploy the Edge Function
+## 2) Deploy the Edge Functions
 From this project root folder:
 
 ```bash
 supabase login
 supabase link --project-ref orcipayaafyqfqjkphxq
 supabase functions deploy create-salesman
+supabase functions deploy sheets-read
 
 # If you deployed before, redeploy after updating the function:
 # supabase functions deploy create-salesman
@@ -32,6 +33,13 @@ Set these secrets (replace SERVICE_ROLE_KEY):
 supabase secrets set \
   SUPABASE_URL="https://orcipayaafyqfqjkphxq.supabase.co" \
   SUPABASE_SERVICE_ROLE_KEY="SERVICE_ROLE_KEY"
+
+# Google Sheets (live read)
+# IMPORTANT: put the entire service account JSON in one line.
+# On Windows PowerShell you may need to escape quotes, or use a .env and `supabase secrets set --env-file`.
+supabase secrets set \
+  GOOGLE_SHEET_ID="1mvollIBhE9KIBRjRDnI8nm3TUNkY-TltbtnsVtuo5gY" \
+  GOOGLE_SA_JSON='{"type":"service_account", ... }'
 ```
 
 Where to get Service Role key:
