@@ -21,6 +21,7 @@ const nav = [
   { href: "/salesmen", label: "Salesmen", icon: Users, roles: ["admin"] },
   { href: "/search", label: "Search", icon: Search, roles: ["admin", "salesman"] },
   { href: "/reports", label: "Reports", icon: Search, roles: ["admin"] },
+  { href: "/admin/users", label: "Create Salesman Login", icon: Users, roles: ["admin"] },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

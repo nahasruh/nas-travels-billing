@@ -29,8 +29,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole(null);
         return;
       }
-      const { data } = await supabase.from("profiles").select("role").eq("user_id", uid).maybeSingle();
-      setRole((data?.role as any) ?? null);
+      try {
+        const p = supabase.from("profiles").select("role").eq("user_id", uid).maybeSingle();
+        const { data } = await Promise.race([
+          p,
+          new Promise<{ data: any }>((resolve) => setTimeout(() => resolve({ data: null }), 2500)),
+        ]);
+        setRole((data?.role as any) ?? null);
+      } catch {
+        setRole(null);
+      }
     }
 
     (async () => {
@@ -38,15 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setSession(data.session ?? null);
       setUser(data.session?.user ?? null);
-      await fetchRole(data.session?.user?.id);
       setLoading(false);
+      void fetchRole(data.session?.user?.id);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      await fetchRole(newSession?.user?.id);
       setLoading(false);
+      void fetchRole(newSession?.user?.id);
     });
 
     return () => {

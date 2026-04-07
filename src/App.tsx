@@ -17,6 +17,7 @@ import Sales from "@/pages/Sales";
 import Payments from "@/pages/Payments";
 import SearchPage from "@/pages/Search";
 import Reports from "@/pages/Reports";
+import AdminUsers from "@/pages/AdminUsers";
 import NotFound from "@/pages/NotFound";
 
 function AppRouter() {
@@ -46,6 +47,11 @@ function AppRouter() {
                 <Route path="/reports">
                   <RequireRole allow={["admin"]}>
                     <Reports />
+                  </RequireRole>
+                </Route>
+                <Route path="/admin/users">
+                  <RequireRole allow={["admin"]}>
+                    <AdminUsers />
                   </RequireRole>
                 </Route>
                 <Route component={NotFound} />
