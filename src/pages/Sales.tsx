@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, RefreshCcw } from "lucide-react";
+import { Plus, Trash2, RefreshCcw, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { formatSar } from "@/lib/format";
 
@@ -38,19 +38,31 @@ type Sale = {
   notes: string | null;
 };
 
-function SaleForm({ agents, salesmen, onCreated }: { agents: Agent[]; salesmen: Salesman[]; onCreated: () => Promise<void> }) {
+function SaleForm({
+  agents,
+  salesmen,
+  initial,
+  mode,
+  onDone,
+}: {
+  agents: Agent[];
+  salesmen: Salesman[];
+  initial?: Partial<Sale>;
+  mode: "create" | "edit";
+  onDone: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false);
-  const [saleDate, setSaleDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [customerName, setCustomerName] = useState("");
-  const [customerMobile, setCustomerMobile] = useState("");
-  const [ticketNumber, setTicketNumber] = useState("");
-  const [route, setRoute] = useState("");
-  const [passengerName, setPassengerName] = useState("");
-  const [agentId, setAgentId] = useState<string | undefined>(undefined);
-  const [salesmanId, setSalesmanId] = useState<string | undefined>(undefined);
-  const [sellAmount, setSellAmount] = useState("0");
-  const [costAmount, setCostAmount] = useState("0");
-  const [notes, setNotes] = useState("");
+  const [saleDate, setSaleDate] = useState(initial?.sale_date ?? format(new Date(), "yyyy-MM-dd"));
+  const [customerName, setCustomerName] = useState(initial?.customer_name ?? "");
+  const [customerMobile, setCustomerMobile] = useState(initial?.customer_mobile ?? "");
+  const [ticketNumber, setTicketNumber] = useState(initial?.ticket_number ?? "");
+  const [route, setRoute] = useState(initial?.route ?? "");
+  const [passengerName, setPassengerName] = useState(initial?.passenger_name ?? "");
+  const [agentId, setAgentId] = useState<string | undefined>(initial?.agent_id ?? undefined);
+  const [salesmanId, setSalesmanId] = useState<string | undefined>(initial?.salesman_id ?? undefined);
+  const [sellAmount, setSellAmount] = useState(String(initial?.sell_amount_sar ?? 0));
+  const [costAmount, setCostAmount] = useState(String(initial?.cost_amount_sar ?? 0));
+  const [notes, setNotes] = useState(initial?.notes ?? "");
 
   return (
     <div className="space-y-4">
@@ -150,10 +162,17 @@ function SaleForm({ agents, salesmen, onCreated }: { agents: Agent[]; salesmen: 
               cost_amount_sar: Number(costAmount || 0),
               notes: notes.trim() || null,
             };
-            const { error } = await supabase.from("sales").insert(payload);
-            if (error) throw error;
-            toast.success("Sale added");
-            await onCreated();
+            if (mode === "create") {
+              const { error } = await supabase.from("sales").insert(payload);
+              if (error) throw error;
+              toast.success("Sale added");
+            } else {
+              if (!initial?.id) throw new Error("Missing sale id");
+              const { error } = await supabase.from("sales").update(payload).eq("id", initial.id);
+              if (error) throw error;
+              toast.success("Sale updated");
+            }
+            await onDone();
           } catch (e: any) {
             toast.error(e?.message ?? "Failed");
           } finally {
@@ -175,6 +194,8 @@ export default function Sales() {
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
   const [rows, setRows] = useState<Sale[]>([]);
   const [q, setQ] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editRow, setEditRow] = useState<Sale | null>(null);
 
   async function load() {
     setLoading(true);
@@ -247,11 +268,32 @@ export default function Sales() {
               <DialogHeader>
                 <DialogTitle>New sale</DialogTitle>
               </DialogHeader>
-              <SaleForm agents={agents} salesmen={salesmen} onCreated={load} />
+              <SaleForm agents={agents} salesmen={salesmen} mode="create" onDone={load} />
             </DialogContent>
           </Dialog>
         </div>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[820px]">
+          <DialogHeader>
+            <DialogTitle>Edit sale</DialogTitle>
+          </DialogHeader>
+          {editRow && (
+            <SaleForm
+              agents={agents}
+              salesmen={salesmen}
+              mode="edit"
+              initial={editRow}
+              onDone={async () => {
+                setEditOpen(false);
+                setEditRow(null);
+                await load();
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Card className="border-border/60 bg-card/70 backdrop-blur">
         <div className="p-4">
@@ -287,19 +329,34 @@ export default function Sales() {
                   )}
                   <TableCell className="text-right">
                     {isAdmin ? (
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        onClick={async () => {
-                          if (!confirm("Delete this sale?") ) return;
-                          const { error } = await supabase.from("sales").delete().eq("id", r.id);
-                          if (error) return toast.error(error.message);
-                          toast.success("Deleted");
-                          await load();
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="inline-flex items-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => {
+                            setEditRow(r);
+                            setEditOpen(true);
+                          }}
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          onClick={async () => {
+                            if (!confirm("Delete this sale?") ) return;
+                            const { error } = await supabase.from("sales").delete().eq("id", r.id);
+                            if (error) return toast.error(error.message);
+                            toast.success("Deleted");
+                            await load();
+                          }}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">No delete</span>
                     )}

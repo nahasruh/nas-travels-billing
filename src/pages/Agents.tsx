@@ -27,6 +27,7 @@ type AgentBalance = {
   opening_balance_sar: number;
   total_cost_sar: number;
   total_paid_out_sar: number;
+  total_credit_sar: number;
   balance_sar: number;
 };
 
@@ -483,6 +484,7 @@ export default function Agents() {
                 <TableHead>Agent</TableHead>
                 <TableHead className="hidden md:table-cell">Phone</TableHead>
                 <TableHead className="hidden lg:table-cell">Email</TableHead>
+                <TableHead className="text-right">Credit (SAR)</TableHead>
                 <TableHead className="text-right">Balance (SAR)</TableHead>
                 <TableHead className="w-[140px] text-right">Actions</TableHead>
               </TableRow>
@@ -498,6 +500,7 @@ export default function Agents() {
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{a.phone ?? "—"}</TableCell>
                     <TableCell className="hidden lg:table-cell">{a.email ?? "—"}</TableCell>
+                    <TableCell className="text-right mono">{formatSar(bal?.total_credit_sar ?? 0)}</TableCell>
                     <TableCell className="text-right mono">{formatSar(bal?.balance_sar ?? a.opening_balance_sar)}</TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2">
@@ -562,7 +565,7 @@ export default function Agents() {
 
               {!loading && filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                     No agents yet.
                   </TableCell>
                 </TableRow>
@@ -570,7 +573,7 @@ export default function Agents() {
 
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
